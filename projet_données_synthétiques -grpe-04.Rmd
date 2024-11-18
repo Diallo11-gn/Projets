@@ -1,0 +1,260 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Projet Données Synthétiques Groupe_04 
+
+### Première étape : Chargement des données 
+```{r}
+# Chargement des librariries nécessaires 
+library(dplyr)
+library(skimr)
+library(dbscan)
+require(dbscan)
+library(class)
+library(fmsb)
+
+# Chargement de la base de données 
+data <- read.csv("C:/Users/cylia/Desktop/Cours/projet tutoré/dataPT2.csv", sep = ";", header = TRUE)
+```
+### Deuxième étape : Création de la matrice X 
+
+```{r}
+#Création de la matrice 'X' en Sélectionnant seulement des variables de type numériques
+X = data %>% select(c('age', 'weight', 'height','d1_heartrate_max' ,"d1_diasbp_max","d1_diasbp_min", 
+                       "d1_diasbp_noninvasive_max", "d1_diasbp_noninvasive_min",
+                       "d1_heartrate_min", "d1_mbp_max", "d1_mbp_min", "d1_mbp_noninvasive_max",
+                       "d1_mbp_noninvasive_min", "d1_resprate_max", "d1_resprate_min", "d1_spo2_max",
+                       "d1_spo2_min", "d1_sysbp_max", "d1_sysbp_min", "d1_sysbp_noninvasive_max",
+                       "d1_sysbp_noninvasive_min", "d1_temp_max", "d1_temp_min", "h1_diasbp_max",
+                       "h1_diasbp_min", "h1_diasbp_noninvasive_max", "h1_diasbp_noninvasive_min",
+                       "h1_heartrate_max", "h1_heartrate_min", "h1_mbp_max", "h1_mbp_min",
+                       "h1_mbp_noninvasive_max", "h1_mbp_noninvasive_min", "h1_resprate_max",
+                       "h1_resprate_min", "h1_spo2_max", "h1_spo2_min", "h1_sysbp_max", "h1_sysbp_min",
+                       "h1_sysbp_noninvasive_max", "h1_sysbp_noninvasive_min", "d1_glucose_max",
+                       "d1_glucose_min", "d1_potassium_max", "d1_potassium_min", "apache_4a_hospital_death_prob",
+                       "apache_4a_icu_death_prob", "map_apache", "resprate_apache", "temp_apache",
+                       "heart_rate_apache", "pre_icu_los_days", "apache_2_diagnosis", "apache_3j_diagnosis"))
+
+head(X)
+```
+
+```{r}
+# conversion des variables de type caractère en type entier 
+X$weight <- as.numeric(X$weight)
+X$height <- as.numeric(X$height)
+X <- na.omit(X) # Supprimer les lignes avec des valeurs manquantes
+
+```
+```{r}
+#supression des valeurs manquantes dans la matrice X
+X <- na.omit(X)
+```
+
+
+
+```{r}
+# Sélection de 300 lignes et de 10 variables dans X
+
+X <- X[1:300, 1:10]
+
+head(X)
+```
+
+ ### Deuxième étape : Création des avatars 
+ 
+```{r}
+# Création de la fonction 'generate_avatar' 
+
+generate_avatar <- function(X,nComp, knn){
+  
+  
+  mu = colMeans(X)
+  Xpca = prcomp(X, )
+  
+  #nombre de composantes principales à conserver et définition du nombre de voisin
+  nComp = 4
+  kn = 5
+  
+  nn <- kNN(Xpca$x[,1:nComp], k = kn)
+  
+  # Création d'une matrice pour stocker les nouvelles coordonnées
+  
+  coordonnées <- matrix(data = NA, nrow = dim(Xpca$x)[1], ncol = nComp)
+  
+  for(i in 1:dim(Xpca$x)[1]){
+    
+    # Pondération des k voisins
+    distances_i <-nn$dist[i,] 
+    inv_disti <- ifelse(distances_i< 1e-9, 1, 1/distances_i)
+    Pi <- inv_disti * rexp(kn, rate = 1) * .5**(sample(1:kn))  
+    Wi <-  Pi/sum(Pi)
+    
+    coordonnées[i,] <-  apply(X = Xpca$x[nn$id[i,],1:nComp],2, FUN=weighted.mean, w=Wi)
+  }
+  # transformation vers les données d'origine
+  X_synth = coordonnées %*% t(Xpca$rotation[,1:nComp])
+  X_synth = scale(X_synth, center = -mu, scale = FALSE)
+  
+  return(data.frame(X_synth))
+}
+```
+
+
+```{r}
+# Exécution de la fonction generate_avatar avec les données X, nComp et knn
+X_synth <- generate_avatar(X, nComp, knn)
+
+
+head(X_synth)
+```
+
+
+```{r}
+# Vérification de la prèsence des valeurs infinies
+X_matrix <- as.matrix(X)
+
+any(is.na(X_matrix))
+any(is.infinite(X_matrix))
+any(is.na(X_matrix) | is.infinite(X_matrix))
+X_matrix_clean <- na.omit(X_matrix)
+
+X_synth <- generate_avatar(X_matrix_clean, 37, 5)
+```
+### Troisième étape : calcul des distances euclidienne et calcul de la distance avec les k plus proches voisins
+
+```{r}
+
+# Création d'une fonction "measure_distance" qui calcule la distance euclidienne  
+
+measure_distance <- function(a, b) sqrt(sum((a - b)^2))
+
+# Création d'une fonction "k_closest_points"qui chreche les K voisins les plus proches  
+k_closest_points <- function(new_point, original_data, k) {
+  distances <- apply(original_data, 1, function(row) measure_distance(new_point, row))
+  sort(distances)[1:k]
+}
+```
+
+
+```{r}
+# Calcul des distances avec les K plus proches voisins dans "X_synth" et les stocker dans une liste
+
+distances_list <- list()
+
+for (i in 1:nrow(X_synth)) {
+  
+  distances <- k_closest_points(X_synth[i, ], X, 1)
+  
+  distances_list[[i]] <- distances
+}
+
+```
+
+### Quatrième étape : Comparaisons des valeurs entre X_synth et X
+```{r}
+# 1. Mesurer la couverture des données
+coverage <- nrow(X_synth) / nrow(X)
+print(coverage)
+```
+
+```{r}
+# 2. Comparaison des statistiques des données
+summary_real <- summary(X)
+summary_synthetic <- summary(X_synth)
+print(summary_real)
+print(summary_synthetic)
+```
+
+
+```{r}
+# 3. Comparaison des formes (histogrammes)
+par(mfrow=c(1,2)) 
+hist(X$age, main="Real Data", col="blue")
+hist(X_synth$age, main="Synthetic Data", col="red")
+```
+
+
+```{r}
+# 4. Mesurer si les clés primaires sont uniques
+is_unique <- length(unique(X_synth$age)) == nrow(X_synth)
+```
+
+
+### Cinquième étape : Calcul des valeurs du "DCR" et du "NNDR"
+
+```{r}
+# Calculer le DCR "distance to closest real"pour X_synth en utilisant X comme jeu de données réel
+calculate_DCR <- function(X_synth, X_real) {
+  DCR <- numeric(nrow(X_synth)) 
+  
+  for (i in 1:nrow(X_synth)) {
+    distances <- k_closest_points(X_synth[i,], X_real, 1)
+    DCR[i] <- min(distances)
+  }
+  
+  return(DCR)
+}
+
+DCR <- calculate_DCR(X_synth, X)
+print(DCR)
+```
+
+```{r}
+# Boxplot représentant le "DCR"
+color <- c( "lightblue")
+boxplot(DCR, col = color)
+```
+
+```{r}
+# Fonction pour calculer le DCS pour chaque ligne de X_synth
+k <- 5
+
+calculate_DCS <- function(X_synth, k) {
+  DCS <- numeric(nrow(X_synth)) 
+  
+  for (i in 1:nrow(X_synth)) {
+    distances <- k_closest_points(X_synth[i,], X_synth, k + 1) 
+    DCS[i] <- distances[k + 1] 
+  }
+  
+  return(DCS)
+}
+
+DCS <- calculate_DCS(X_synth, k)
+print(DCS)
+```
+
+```{r}
+# Calculer le NNDR à partir des distances DCR et DCS
+calculate_NNDR <- function(DCR, DCS) {
+  NNDR <- DCR / DCS
+  return(NNDR)
+}
+
+NNDR <- calculate_NNDR(DCR, DCS)
+print(NNDR)
+```
+
+```{r}
+# Définition des couleurs pour chaque vecteur
+couleurs <- c("lightblue", "lightpink", "lightgreen")
+
+# Tracé du boxplot
+boxplot(DCR, DCS, NNDR, col = couleurs, names = c("DCR", "DCS", "NNDR"))
+```
+
+```{r}
+# Création d'un radarchart pour visualiser les valeurs du DCR, DCS et NNDR
+
+df <- data.frame(DCR, DCS, NNDR)
+radarchart(df, pcol = couleurs)
+
+```
+
+
+
+
