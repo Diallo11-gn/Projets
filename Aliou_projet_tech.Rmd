@@ -1,0 +1,155 @@
+---
+title: "DECES PAR ARME A FEU"
+author: "Mamadou Aliou DIALLO"
+date: "2023-11-25"
+output:
+  word_document: default
+  html_document: default
+---
+
+# Introduction 
+
+Les armes à feu sont un sujet très sensible aux Etats-Unis, et même partout ailleurs dans le monde. La santé mentale est pour moi un sujet très important et délicat à en parler dans notre ent
+ourage, surtout dans cette société actuelle. 
+
+Cette analyse explore un ensemble de données concernant les armes à feu. 
+
+## Objectifs
+
+   Importation d'un dataset (base de données)
+   Description des données
+   Data management
+   Visualisation avec deux graphes
+   
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggplot2)
+library(readr)
+#Importation du dataset
+
+df<- read.csv("C:\\Users\\nouho\\Desktop\\Aliou\\gun_deaths.csv", header = T, sep = ",")
+```
+
+
+
+
+
+
+
+
+
+```{r, echo=TRUE, results=FALSE}
+######## DESCRIPTION DES DONNEES ############
+
+#Afficher les premieres lignes
+head(df)
+
+#Afficher les statistisques descriptives
+summary(df)
+
+#Afficher la structure des données
+str(df)
+
+######## DATA MANAGEMANT (SI NECESSAIRE)######
+
+# Convertir la variable "age" en numérique
+
+df$age <- as.numeric(df$age)
+
+# Convertir les variables catégorielles en facteurs
+
+df$intent <- as.factor(df$intent)
+df$sex <- as.factor(df$sex)
+df$race <- as.factor(df$race)
+df$place <- as.factor(df$place)
+df$education <- as.factor(df$education)
+
+# Convertir la variable "year" en facteur
+
+df$year <- as.factor(df$year)
+
+# Traitement des valeurs manquantes dans la variable "age" par exemple (remplacement par la moyenne)
+
+df$age[is.na(df$age)] <- mean(df$age, na.rm = TRUE)
+
+
+```
+
+
+
+
+
+
+
+
+```{r, echo=FALSE, results=TRUE}
+########### GRAPHIQUES #########################
+
+# Définir les limites des catégories d'âge
+
+bins <- c(0, 18, 30, 60, 90, 108)
+labels <- c('Mineurs', '18+ Jeune Age', '30+ Age Moyen', '60+ Age Adulte', '90+ Vieillards')
+
+# Création de la variable 'age_category'
+
+df <- df %>%
+  mutate(age_category = cut(age, breaks = bins, labels = labels, include.lowest = TRUE))
+
+# Graphique 1 : Catégories d'âge
+
+age_graph <- df %>%
+  ggplot(aes(x = age_category, fill = intent)) +
+  geom_bar(position = "dodge") +
+  ggtitle("Gun Deaths: Age Categories") +
+  ylab("Total Number of Gun Deaths") +
+  theme_minimal()
+age_graph
+```
+
+
+Ce graphe illustre la repartition des décès par arme à feu en fonction des catégories d'âges. 
+Permettant d'observer quelles sont les tranches d'âges les plus touchées par rapport aux autres et s'il y a des différences significatives dans les intentions. 
+
+On observe que le taux de suicide est très élévé dans l'âge moyen suivi derrière par l'âge adulte et enfin les jeunes. 
+
+
+
+
+
+
+
+
+
+```{r , echo=FALSE, results=TRUE}
+
+
+
+
+# Graphique 2 : Ethnicité et Sexe
+
+ethnicity_graph <- ggplot(df, aes(x = race, fill = sex)) +
+  geom_bar(position = "dodge") +
+  ggtitle("Gun Deaths: Ethnicity and Gender") +
+  ylab("Total Number of Gun Deaths") +  
+  theme_minimal()
+ethnicity_graph
+
+
+```
+
+Dans ce dernier graphe on observe la répartition des décès par armes à feu en fonction de la race (ethnicité) et du genre (F,M). Il permet de révéler s'il y a des différences significatives entre les sexes dans une même ethnie. 
+
+On observe que les hommes et les femmes de la race blanche sont les plus touchés et les moins touchés sont  Native American/Native Alaskan.
+
+### Conclusion
+
+Ces graphes fournissent un debut d'exploration de données et pourrait servir comme point de départ pour de plus approfondies analyses. 
+
+
+
+
